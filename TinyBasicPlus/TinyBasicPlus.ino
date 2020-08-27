@@ -6,6 +6,8 @@
 //    Gordon Brandly (Tiny Basic for 68000)
 //    Mike Field <hamster@snap.net.nz> (Arduino Basic) (port to Arduino)
 //    Scott Lawrence <yorgle@gmail.com> (TinyBasic Plus) (features, etc)
+//    Arin Bakht <arin.bakht@gmail.com> (NETBasic) (port to Heltec Wifi Kit 32 with networking features. Based on ESP32 platform)
+//
 //
 // Contributors:
 //          Brian O'Dell <megamemnon@megamemnon.com> (INPUT)
@@ -135,13 +137,15 @@
 char eliminateCompileErrors = 1;  // fix to suppress arduino build errors
 
 // hack to let makefiles work with this file unchanged
-#ifdef FORCE_DESKTOP 
+/*#ifdef FORCE_DESKTOP 
 #undef ARDUINO
 #include "desktop.h"
 #else
 #define ARDUINO 1
 #endif
-
+*/
+#define ARDUINO
+#include "heltec.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // Feature option configuration...
@@ -175,8 +179,8 @@ char eliminateCompileErrors = 1;  // fix to suppress arduino build errors
 // 1kbyte on the '328, and 512 bytes on the '168.  Enabling this here will
 // allow for this funcitonality to work.  Note that this only works on AVR
 // arduino.  Disable it for DUE/other devices.
-#define ENABLE_EEPROM 1
-//#undef ENABLE_EEPROM
+//#define ENABLE_EEPROM 1
+#undef ENABLE_EEPROM //mess stuff up in modern Arduino IDEs
 
 // Sometimes, we connect with a slower device as the console.
 // Set your console D0/D1 baud rate here (9600 baud default)
@@ -217,7 +221,7 @@ char eliminateCompileErrors = 1;  // fix to suppress arduino build errors
 
 // includes, and settings for Arduino-specific features
 #ifdef ARDUINO
-
+  #include <Arduino.h>
   // EEPROM
   #ifdef ENABLE_EEPROM
     #include <EEPROM.h>  /* NOTE: case sensitive */
@@ -262,7 +266,7 @@ char eliminateCompileErrors = 1;  // fix to suppress arduino build errors
 
 #ifdef ARDUINO
   // Use pgmspace/PROGMEM directive to store strings in progmem to save RAM
-  #include <avr/pgmspace.h>
+  //#include <avr/pgmspace.h> NOT required for Arduino IDE versions >1.0
 #else
   #include <stdio.h>
   #include <stdlib.h>
@@ -692,14 +696,22 @@ static unsigned char print_quoted_string(void)
     return 0;
   txtpos++;
 
+  //clear OLED display
+  Heltec.display->clear();
+  String myStr = "";
   // Check we have a closing delimiter
   while(txtpos[i] != delim)
   {
+    myStr = myStr + String((char)(txtpos[i])); //cast char to String, append
     if(txtpos[i] == NL)
       return 0;
     i++;
   }
-
+  i = 0;
+  
+  Heltec.display -> drawStringMaxWidth( 0, 0, 128, myStr ); //display whole string, 128 is width of Wifi Kit OLED display
+  Heltec.display -> display();
+  
   // Print the characters
   while(*txtpos != delim)
   {
@@ -707,7 +719,8 @@ static unsigned char print_quoted_string(void)
     txtpos++;
   }
   txtpos++; // Skip over the last delimiter
-
+    
+      
   return 1;
 }
 
@@ -1832,7 +1845,7 @@ dwrite:
       digitalWrite( pinNo, value );
     } 
     else {
-      analogWrite( pinNo, value );
+//      analogWrite( pinNo, value );
     }
   }
   goto run_next_statement;
@@ -2054,11 +2067,21 @@ static void line_terminator(void)
 /***********************************************************/
 void setup()
 {
+
 #ifdef ARDUINO
+
+    
   Serial.begin(kConsoleBaud);	// opens serial port
   while( !Serial ); // for Leonardo
-  
+
+  //initiate Heltec features
+  Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Enable*/, false /*Serial Enable*/);
+  Heltec.display->clear();
+
   Serial.println( sentinel );
+  Heltec.display->drawString(0, 0, sentinel);
+  Heltec.display->display();
+  
   printmsg(initmsg);
 
 #ifdef ENABLE_FILEIO
@@ -2195,7 +2218,6 @@ static void outchar(unsigned char c)
   #endif /* ENABLE_EEPROM */
   #endif /* ARDUINO */
     Serial.write(c);
-
 #else
   putchar(c);
 #endif
@@ -2204,8 +2226,8 @@ static void outchar(unsigned char c)
 /***********************************************************/
 /* SD Card helpers */
 
-#if ARDUINO && ENABLE_FILEIO
-
+#ifdef ARDUINO && ENABLE_FILEIO
+/*
 static int initSD( void )
 {
   // if the card is already initialized, we just go with it.
@@ -2232,7 +2254,7 @@ static int initSD( void )
   inhibitOutput = false;
 
   return kSD_OK;
-}
+}*/
 #endif
 
 #if ENABLE_FILEIO
